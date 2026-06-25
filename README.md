@@ -2,16 +2,6 @@
 
 Table Tennis club management platform for Innopolis University. Track players, matches, tournaments with an ELO-like rating system.
 
-## Tech Stack
-
-| Component | Technology |
-|---|---|
-| **Frontend** | SvelteKit 1.x, TypeScript, Vite 4, D3.js |
-| **Backend** | Java 17, Spring Boot 2.7.8, Spring Security, JPA |
-| **Database** | MySQL (prod), PostgreSQL (dev), H2 (local) |
-| **Auth** | JWT, BCrypt, Spring Security |
-| **Infra** | Docker, Kafka, Telegram Bot |
-
 ## Quick Start (Local Dev)
 
 ### Prerequisites
@@ -39,13 +29,6 @@ npm run dev
 
 Open **http://localhost:5173**
 
-### 3. Login
-
-| Username | Password | Roles |
-|---|---|---|
-| `admin` | `admin` | USER, LEADER, ADMIN |
-
-Created automatically on first backend start. After logging in, the **Admin panel** link appears in the navbar.
 
 ## Features
 
