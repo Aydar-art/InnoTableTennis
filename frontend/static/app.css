@@ -1,0 +1,70 @@
+:root {
+	/* Colors */
+	--main-color: #292626;
+	--secondary-color: #d22d19;
+	--content-color: #ebebeb;
+	--title-color: #fff6f6;
+	--secondary-bg-color: #4f4b4b;
+	--not-chosen-font-color: #afafaf;
+
+	--error-back-color: rgba(150, 0, 0, 0.7);
+
+	--rating-positive-color: #2ca800;
+	--rating-negative-color: #ff0000;
+
+	/* Font sizes */
+
+	--fontsize-x-large: 2rem;
+	--fontsize-large: 1.5rem;
+
+	--fontsize-medium1: 1rem;
+	--fontsize-medium2: 0.8rem;
+
+	--fontsize-small: 0.6rem;
+
+	/* Font weights */
+	--fontweight-1: 700;
+	--fontweight-2: 400;
+
+	/* Font families */
+
+	--main-font: 'Karla', sans-serif;
+}
+
+[color-scheme='light'] {
+	--main-color: #ffffff;
+	--content-color: #373a3d;
+	--title-color: #2b2b2b;
+	--secondary-bg-color: #de9b8a;
+	--not-chosen-font-color: #78797b;
+}
+
+*,
+a,
+html {
+	font-family: var(--main-font);
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+label,
+ul,
+div,
+span {
+	color: var(--content-color);
+}
+
+body {
+	background-color: var(--main-color);
+}
+
+@media (max-width: 800px) {
+	* {
+		font-size: var(--fontsize-medium2);
+	}
+}

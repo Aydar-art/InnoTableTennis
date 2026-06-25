@@ -1,0 +1,41 @@
+services:
+  backend-dev:
+    container_name: tabletennis-backend-dev
+    build: .
+    image: system205/tabletennis:no-bot
+    restart: unless-stopped
+    ports:
+      - 8080:8080
+    depends_on:
+      - postgresql-db
+    environment:
+      spring.datasource.url: jdbc:postgresql://postgresql-db:5432/tabletennis
+      spring.profiles.active: dev
+    env_file: .env
+  postgresql-db:
+    container_name: tabletennis-postgres-dev
+    image: system205/tabletennis-postgres:28.04.24
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tabletennis
+    env_file: .env
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+    ports:
+      - 5433:5432
+
+#  frontend:
+#    container_name: tabletennis-frontend
+#    image: kekstroke/table-tennis-frontend:latest
+#    restart: unless-stopped
+#    environment:
+#      ORIGIN: https://tabletennis.innopolis.university
+#      PROD_SERVER_URL: http://tabletennis-backend-dev:8080
+#      PUBLIC_PROD_SERVER_URL: http://tabletennis-backend-dev:8080
+#    ports:
+#      - 3000:3000
+#    depends_on:
+#      - backend-dev
+
+volumes:
+  postgres-volume:

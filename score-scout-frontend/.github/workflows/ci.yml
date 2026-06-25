@@ -1,0 +1,49 @@
+name: ESLint, Prettier, and TypeScript Testing
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+jobs:
+  node_test:
+    permissions: write-all
+    name: Run format, lint, and TypeScript check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HUSKY: 0
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4.0.0
+        with:
+          version: 9.3.0
+          run_install: true
+
+      - name: Save Code Linting Report JSON
+        run: pnpm run lint:report
+        # Continue to the next step even if this fails
+        continue-on-error: true
+      - name: Annotate Code Linting Results
+        uses: ataylorme/eslint-annotate-action@v3
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          report-json: 'eslint_report.json'
+
+      - name: TypeScript Check
+        run: pnpm run typescript
+
+      - name: Test That The Project Builds
+        run: pnpm run build

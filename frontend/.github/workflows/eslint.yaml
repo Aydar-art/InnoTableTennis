@@ -1,0 +1,50 @@
+name: ESLint, Prettier, and TypeScript Testing
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  node_test:
+    permissions: write-all
+    name: Run format, lint, and TypeScript check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: npm ci
+        env:
+          CI: TRUE
+
+      - name: Set up environment variables
+        run: |
+          echo "DEV_SERVER_URL=${{ secrets.DEV_SERVER_URL }}" >> $GITHUB_ENV
+          echo "PROD_SERVER_URL=${{ secrets.PROD_SERVER_URL }}" >> $GITHUB_ENV
+          echo "PUBLIC_DEV_SERVER_URL=${{ secrets.PUBLIC_DEV_SERVER_URL }}" >> $GITHUB_ENV
+          echo "PUBLIC_PROD_SERVER_URL=${{ secrets.PUBLIC_PROD_SERVER_URL }}" >> $GITHUB_ENV
+
+      - name: Format code
+        run: npm run format
+      - name: Start linting
+        run: npm run lintGit
+        continue-on-error: true
+
+      - name: Annotate Code Linting Results
+        uses: ataylorme/eslint-annotate-action@v2
+        with:
+          repo-token: '${{ secrets.GITHUB_TOKEN }}'
+          report-json: 'eslint_report.json'
+      - name: Upload ESLint report
+        uses: actions/upload-artifact@v2
+        with:
+          name: eslint_report.json
+          path: eslint_report.json
+      - name: TypeScript Check
+        run: npm run check
+      - name: Test That The Project Builds
+        run: npm run build
