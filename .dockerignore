@@ -1,0 +1,8 @@
+.git
+.gitignore
+README.md
+node_modules
+target
+.svelte-kit
+build
+.env
