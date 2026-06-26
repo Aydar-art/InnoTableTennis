@@ -21,8 +21,8 @@ def cleanup(s, f):
     log('Done')
     sys.exit(0)
 
-def run(cmd, cwd=None, **kw):
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, **kw)
+def run(cmd, cwd=None, timeout=None, **kw):
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, **kw)
 
 def confirm(question):
     ans = input(f'  ⚠ {question} [Y/n] ').strip().lower()
@@ -169,12 +169,14 @@ if npm_ok:
     if os.path.isdir(nm):
         log('  ✓ frontend dependencies installed')
     else:
-        log('  installing frontend npm dependencies...')
-        r = run(['npm', 'install'], cwd=FRONTEND_DIR, timeout=120)
+        log('  installing frontend npm dependencies (this may take a while)...')
+        log('  running: npm install')
+        r = subprocess.run(['npm', 'install'], cwd=FRONTEND_DIR,
+                          capture_output=False, timeout=None)
         if r.returncode == 0:
             log('  ✓ npm install complete')
         else:
-            log(f'  ✗ npm install failed: {r.stderr[-200:]}')
+            log(f'  ✗ npm install failed (exit code {r.returncode})')
 
 # Maven wrapper
 mvnw = os.path.join(BACKEND_DIR, 'mvnw')
@@ -196,11 +198,12 @@ if java_ok and java_home and os.path.isfile(mvnw):
         full_java = os.path.join(java_home, 'bin', 'java') if os.path.isdir(java_home) else java_home
         if os.path.isfile(full_java):
             env['JAVA_HOME'] = os.path.dirname(os.path.dirname(full_java))
-        r = run([mvnw, 'compile', '-DskipTests'], cwd=BACKEND_DIR, env=env, timeout=300)
+        r = subprocess.run([mvnw, 'compile', '-DskipTests'], cwd=BACKEND_DIR, env=env,
+                          capture_output=False, timeout=None)
         if r.returncode == 0:
             log('  ✓ Backend compiled')
         else:
-            log(f'  ⚠ compile issues (will retry at startup): {r.stderr[-150:]}')
+            log(f'  ⚠ compile issues (will retry at startup)')
 
 log('All checks passed, starting services...\n')
 
