@@ -1,0 +1,9 @@
+# System requirements for InnoTableTennis
+#
+# Java 17    — backend (Spring Boot)
+# Node.js 18+ — frontend (SvelteKit)
+# Python 3   — run script
+
+# All other dependencies are managed automatically:
+# - Maven wrapper (./mvnw) downloads Maven & Java deps on first run
+# - npm packages install via `npm install` in frontend/

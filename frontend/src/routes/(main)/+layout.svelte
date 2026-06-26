@@ -33,7 +33,7 @@
 	}
 	header {
 		height: 4em;
-		/* background-color: transparent; */
+		background-color: transparent;
 	}
 	@media (max-width: 800px) {
 		main {
