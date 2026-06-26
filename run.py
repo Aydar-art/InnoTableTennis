@@ -21,8 +21,8 @@ def cleanup(s, f):
     log('Done')
     sys.exit(0)
 
-def run(cmd, cwd=None, **kw):
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, **kw)
+def run(cmd, cwd=None, timeout=None, **kw):
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, **kw)
 
 def confirm(question):
     ans = input(f'  ⚠ {question} [Y/n] ').strip().lower()
@@ -169,12 +169,14 @@ if npm_ok:
     if os.path.isdir(nm):
         log('  ✓ frontend dependencies installed')
     else:
-        log('  installing frontend npm dependencies...')
-        r = run(['npm', 'install'], cwd=FRONTEND_DIR, timeout=120)
+        log('  installing frontend npm dependencies (this may take a while)...')
+        log('  running: npm install')
+        r = subprocess.run(['npm', 'install'], cwd=FRONTEND_DIR,
+                          capture_output=False, timeout=None)
         if r.returncode == 0:
             log('  ✓ npm install complete')
         else:
-            log(f'  ✗ npm install failed: {r.stderr[-200:]}')
+            log(f'  ✗ npm install failed (exit code {r.returncode})')
 
 # Maven wrapper
 mvnw = os.path.join(BACKEND_DIR, 'mvnw')
@@ -196,11 +198,12 @@ if java_ok and java_home and os.path.isfile(mvnw):
         full_java = os.path.join(java_home, 'bin', 'java') if os.path.isdir(java_home) else java_home
         if os.path.isfile(full_java):
             env['JAVA_HOME'] = os.path.dirname(os.path.dirname(full_java))
-        r = run([mvnw, 'compile', '-DskipTests'], cwd=BACKEND_DIR, env=env, timeout=300)
+        r = subprocess.run([mvnw, 'compile', '-DskipTests'], cwd=BACKEND_DIR, env=env,
+                          capture_output=False, timeout=None)
         if r.returncode == 0:
             log('  ✓ Backend compiled')
         else:
-            log(f'  ⚠ compile issues (will retry at startup): {r.stderr[-150:]}')
+            log(f'  ⚠ compile issues (will retry at startup)')
 
 log('All checks passed, starting services...\n')
 
@@ -227,50 +230,64 @@ with open(FRONTEND_LOG, 'w') as f:
         cwd=FRONTEND_DIR, stdout=f, stderr=subprocess.STDOUT
     ))
 
+MAX_WAIT = 300  # 5 minutes per service
+SLEEP = 2
+
 # Wait for backend
-log('Waiting for backend on http://localhost:8080 ...')
-for i in range(30):
+log(f'Waiting for backend (up to {MAX_WAIT}s)...')
+backend_ok = False
+for i in range(MAX_WAIT // SLEEP):
     try:
         r = run(['curl', '-so', '/dev/null', '-w', '%{http_code}',
                  'http://localhost:8080/api/matches'], timeout=5)
         if r.stdout.strip() == '200':
-            log(f'Backend ready (attempt {i+1})')
+            log(f'Backend ready ({i * SLEEP + 1}s)')
+            backend_ok = True
             break
     except: pass
-    if i < 3 or (i + 1) % 5 == 0:
-        log(f'  waiting... ({i+1}/30)')
-    time.sleep(2)
-else:
+    if (i * SLEEP) % 10 == 0:
+        log(f'  waiting for backend... ({i * SLEEP + 1}s)')
+    time.sleep(SLEEP)
+
+if not backend_ok:
     log('ERROR: Backend failed to start. Check /tmp/backend.log')
 
 # Wait for frontend
-log('Waiting for frontend on http://localhost:5173 ...')
-for i in range(15):
+if backend_ok:
+    log(f'Waiting for frontend (up to {MAX_WAIT}s)...')
+frontend_ok = False
+for i in range(MAX_WAIT // SLEEP):
+    if not backend_ok:
+        break
     try:
         r = run(['curl', '-so', '/dev/null', '-w', '%{http_code}',
                  'http://localhost:5173'], timeout=5)
         if r.stdout.strip() == '200':
-            log(f'Frontend ready (attempt {i+1})')
+            log(f'Frontend ready ({i * SLEEP + 1}s)')
+            frontend_ok = True
             break
     except: pass
-    log(f'  waiting... ({i+1}/15)')
-    time.sleep(2)
-else:
+    if (i * SLEEP) % 10 == 0:
+        log(f'  waiting for frontend... ({i * SLEEP + 1}s)')
+    time.sleep(SLEEP)
+
+if not frontend_ok and backend_ok:
     log('ERROR: Frontend failed to start. Check /tmp/frontend.log')
 
-log('All services are up!')
-print()
-print('  ┌──────────────────────────────────────────────────┐')
-print('  │  Frontend : http://localhost:5173                │')
-print('  │  Backend  : http://localhost:8080                │')
-print('  │  Login    : admin / admin                        │')
-print('  │                                                  │')
-print('  │  Logs:                                           │')
-print('  │    backend  → tail -f /tmp/backend.log           │')
-print('  │    frontend → tail -f /tmp/frontend.log          │')
-print('  │  Ctrl+C to stop                                  │')
-print('  └──────────────────────────────────────────────────┘')
-print()
+if backend_ok and frontend_ok:
+    log('All services are up!')
+    print()
+    print('  ┌──────────────────────────────────────────────────┐')
+    print('  │  Frontend : http://localhost:5173                │')
+    print('  │  Backend  : http://localhost:8080                │')
+    print('  │  Login    : admin / admin                        │')
+    print('  │                                                  │')
+    print('  │  Logs:                                           │')
+    print('  │    backend  → tail -f /tmp/backend.log           │')
+    print('  │    frontend → tail -f /tmp/frontend.log          │')
+    print('  │  Ctrl+C to stop                                  │')
+    print('  └──────────────────────────────────────────────────┘')
+    print()
 
 for p in procs:
     p.wait()
