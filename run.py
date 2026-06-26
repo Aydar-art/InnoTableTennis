@@ -248,7 +248,10 @@ if java_home:
     if jhome:
         env['JAVA_HOME'] = jhome
 
-log('Starting backend (Spring Boot + H2)...')
+env['MAVEN_OPTS'] = '-Xmx256m'
+env['JAVA_TOOL_OPTIONS'] = '-Xmx256m'
+
+log('Starting backend (Spring Boot + H2) with MAVEN_OPTS=-Xmx256m...')
 with open(BACKEND_LOG, 'w') as f:
     procs.append(subprocess.Popen(
         [mvnw, 'spring-boot:run', '-Dspring-boot.run.profiles=h2',
@@ -256,22 +259,23 @@ with open(BACKEND_LOG, 'w') as f:
         cwd=BACKEND_DIR, env=env, stdout=f, stderr=subprocess.STDOUT
     ))
 
-host_ip = args.host_ip or 'localhost'
-log(f'Starting frontend (SvelteKit + Vite) — PUBLIC_DEV_SERVER_URL=http://{host_ip}:8080...')
-frontend_env = env.copy()
-frontend_env['PUBLIC_DEV_SERVER_URL'] = f'http://{host_ip}:8080'
-with open(FRONTEND_LOG, 'w') as f:
-    procs.append(subprocess.Popen(
-        ['npm', 'run', 'dev', '--', '--host', '0.0.0.0'],
-        cwd=FRONTEND_DIR, env=frontend_env, stdout=f, stderr=subprocess.STDOUT
-    ))
-
-# ── Wait for services ───────────────────────────────────────────
+# ── Wait for backend, then start frontend ───────────────────────
 
 MAX_WAIT = 600
-
 backend_ok = wait_service('Backend', 'http://127.0.0.1:8080/api/matches', MAX_WAIT)
-frontend_ok = backend_ok and wait_service('Frontend', 'http://127.0.0.1:5173', MAX_WAIT)
+
+frontend_ok = False
+if backend_ok:
+    host_ip = args.host_ip or 'localhost'
+    log(f'Starting frontend (SvelteKit + Vite) — PUBLIC_DEV_SERVER_URL=http://{host_ip}:8080...')
+    frontend_env = env.copy()
+    frontend_env['PUBLIC_DEV_SERVER_URL'] = f'http://{host_ip}:8080'
+    with open(FRONTEND_LOG, 'w') as f:
+        procs.append(subprocess.Popen(
+            ['npm', 'run', 'dev', '--', '--host', '0.0.0.0'],
+            cwd=FRONTEND_DIR, env=frontend_env, stdout=f, stderr=subprocess.STDOUT
+        ))
+    frontend_ok = wait_service('Frontend', 'http://127.0.0.1:5173', MAX_WAIT)
 
 # ── Results ─────────────────────────────────────────────────────
 
