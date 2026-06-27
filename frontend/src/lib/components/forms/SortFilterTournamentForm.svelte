@@ -4,7 +4,6 @@
 		SORT_FILTER_TOURNAMENT_FORM,
 		SortFilterTournamentFormStore,
 	} from '$lib/client/stores/stores.forms';
-	import Button from '$lib/components/base/Button.svelte';
 	import RadioGroup from '$lib/components/base/RadioGroup.svelte';
 	import OrderButton from '$lib/components/base/OrderButton.svelte';
 	import InputTemplate from '$lib/components/base/inputs/InputTemplate.svelte';
@@ -13,7 +12,6 @@
 	import { objectToURLSearchParams } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { Router } from 'lucide-svelte';
 
 	onMount(() => {
 		if ($page.url.pathname == '/') {
@@ -40,34 +38,64 @@
 				$SortFilterTournamentFormStore.descending = searchParams.get('descending') !== 'false';
 			}
 		}
+		isInitialized = true;
 	});
 
 	let radioValues = ['date', 'players', 'coefficient'];
 	let radioLabels = ['Sort by date', 'Sort by number of players', 'Sort by kf'];
 
+	let isInitialized = false;
+	let debounceTimeout: ReturnType<typeof setTimeout>;
+
 	const resetForm = function () {
 		$SortFilterTournamentFormStore = structuredClone(SORT_FILTER_TOURNAMENT_FORM);
-		goto($page.url.pathname, {keepFocus: true, noScroll: true, replaceState: true});
+		// goto($page.url.pathname, {keepFocus: true, noScroll: true, replaceState: true});
 	};
 
-	function handleSubmit(event: SubmitEvent) {
-		const url = new URL($page.url);
+	// function handleSubmit(event: SubmitEvent) {
+	// 	const url = new URL($page.url);
 
-		const currentPageSize = url.searchParams.get('currentPageSize');
+	// 	const currentPageSize = url.searchParams.get('currentPageSize');
 
-		const formData = new FormData(event.target as HTMLFormElement);
+	// 	const formData = new FormData(event.target as HTMLFormElement);
 
-		const searchParams = objectToURLSearchParams({
-			...Object.fromEntries(formData),
-			endDateString: $SortFilterTournamentFormStore.endDateString,
-			startDateString: $SortFilterTournamentFormStore.startDateString,
-			currentPageSize,
-		});
+	// 	const searchParams = objectToURLSearchParams({
+	// 		...Object.fromEntries(formData),
+	// 		endDateString: $SortFilterTournamentFormStore.endDateString,
+	// 		startDateString: $SortFilterTournamentFormStore.startDateString,
+	// 		currentPageSize,
+	// 	});
 
-		const new_url = new URL(`${url.origin}${url.pathname}?${searchParams}`);
+	// 	const new_url = new URL(`${url.origin}${url.pathname}?${searchParams}`);
 
-		event.preventDefault();
-		goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+	// 	event.preventDefault();
+	// 	goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+	// }
+
+	$: {
+		if (isInitialized) {
+			const _ = $SortFilterTournamentFormStore; // создаём зависимость от стора
+
+			clearTimeout(debounceTimeout);
+			debounceTimeout = setTimeout(() => {
+				const currentPageSize = $page.url.searchParams.get('currentPageSize');
+
+				const params = objectToURLSearchParams({
+					title: $SortFilterTournamentFormStore.title || null,
+					minParticipants: $SortFilterTournamentFormStore.minParticipants || null,
+					maxParticipants: $SortFilterTournamentFormStore.maxParticipants || null,
+					startDateString: $SortFilterTournamentFormStore.startDateString || null,
+					endDateString: $SortFilterTournamentFormStore.endDateString || null,
+					sortBy: $SortFilterTournamentFormStore.sortBy,
+					descending: $SortFilterTournamentFormStore.descending,
+					currentPageSize,
+				});
+
+				const url = new URL($page.url);
+				const new_url = new URL(`${url.origin}${url.pathname}?${params}`);
+				goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+			}, 400);
+		}
 	}
 </script>
 
@@ -76,7 +104,7 @@
 	<ResetButton onClick={resetForm} label="Reset" />
 </div>
 
-<form on:submit={handleSubmit} class="filters">
+<form class="filters">
 	<div class="column-1-elems">
 		<!-- svelte-ignore a11y-label-has-associated-control -->
 		<label>
@@ -131,16 +159,9 @@
 			/>
 		</label>
 	</div>
-	<div class="line-2-elems">
-		<div class="last-box full-width margin-top">
-			<Button dark={false} disabled={false} type={'submit'}>Search</Button>
-		</div>
-	</div>
-
 	<h2>Sort by</h2>
 
 	<div class="column-3-elems">
-		<input hidden name="sortBy" bind:value={$SortFilterTournamentFormStore.sortBy} />
 		<RadioGroup
 			bind:group={$SortFilterTournamentFormStore.sortBy}
 			values={radioValues}
@@ -148,11 +169,6 @@
 		/>
 	</div>
 	<OrderButton bind:value={$SortFilterTournamentFormStore.descending} />
-	<div class="line-2-elems">
-		<div class="last-box full-width margin-top">
-			<Button dark={false} disabled={false} type={'submit'}>Sort</Button>
-		</div>
-	</div>
 </form>
 
 <style>
@@ -190,7 +206,7 @@
 		gap: 1rem;
 		align-items: end;
 	}
-	.last-box {
+	/* .last-box {
 		grid-column: 2;
 	}
 	.full-width {
@@ -199,5 +215,5 @@
 
 	.margin-top {
 		margin-top: 1em;
-	}
+	} */
 </style>

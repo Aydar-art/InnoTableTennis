@@ -3,7 +3,7 @@
 		SORT_FILTER_MATCH_FORM,
 		SortFilterMatchFormStore,
 	} from '$lib/client/stores/stores.forms';
-	import Button from '$lib/components/base/Button.svelte';
+	// import Button from '$lib/components/base/Button.svelte';
 
 	import RadioGroup from '$lib/components/base/RadioGroup.svelte';
 	import ResetButton from '$lib/components/base/ResetButton.svelte';
@@ -24,8 +24,6 @@
 				searchParams?.get('score') || $SortFilterMatchFormStore.score;
 			$SortFilterMatchFormStore.minDateString =
 				searchParams?.get('minDateString') || $SortFilterMatchFormStore.minDateString;
-			$SortFilterMatchFormStore.minDateString =
-				searchParams?.get('minDateString') || $SortFilterMatchFormStore.minDateString;
 			$SortFilterMatchFormStore.maxDateString =
 				searchParams?.get('maxDateString') || $SortFilterMatchFormStore.maxDateString;
 			if (searchParams?.get('sortBy')) {
@@ -35,6 +33,7 @@
 				$SortFilterMatchFormStore.descending = searchParams.get('descending') !== 'false';
 			}
 		}
+		isInitialized = true;
 	});
 
 	$: $SortFilterMatchFormStore.score = $SortFilterMatchFormStore.score.replace(/\s/g, '');
@@ -42,30 +41,57 @@
 	let radioValues = ['date'];
 	let radioLabels = ['Sort by date'];
 
+	let debounceTimeout: ReturnType<typeof setTimeout>;
+	let isInitialized = false;
+
 	const resetForm = function () {
 		$SortFilterMatchFormStore = structuredClone(SORT_FILTER_MATCH_FORM);
-		goto($page.url.pathname, {keepFocus: true, noScroll: true, replaceState: true});
-
+		// goto($page.url.pathname, {keepFocus: true, noScroll: true, replaceState: true});
 	};
 
-	function handleSubmit(event: SubmitEvent) {
-		const url = new URL($page.url);
+	// function handleSubmit(event: SubmitEvent) {
+	// 	const url = new URL($page.url);
 
-		const currentPageSize = url.searchParams.get('currentPageSize');
+	// 	const currentPageSize = url.searchParams.get('currentPageSize');
 
-		const formData = new FormData(event.target as HTMLFormElement);
+	// 	const formData = new FormData(event.target as HTMLFormElement);
 
-		const searchParams = objectToURLSearchParams({
-			...Object.fromEntries(formData),
-			minDateString: $SortFilterMatchFormStore.minDateString,
-			maxDateString: $SortFilterMatchFormStore.maxDateString,
-			currentPageSize,
-		});
+	// 	const searchParams = objectToURLSearchParams({
+	// 		...Object.fromEntries(formData),
+	// 		minDateString: $SortFilterMatchFormStore.minDateString,
+	// 		maxDateString: $SortFilterMatchFormStore.maxDateString,
+	// 		currentPageSize,
+	// 	});
 
-		const new_url = new URL(`${url.origin}${url.pathname}?${searchParams}`);
+	// 	const new_url = new URL(`${url.origin}${url.pathname}?${searchParams}`);
 
-		event.preventDefault();
-		goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+	// 	event.preventDefault();
+	// 	goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+	// }
+
+	$: {
+		if (isInitialized) {
+			const _ = $SortFilterMatchFormStore; // создаём зависимость от стора
+
+			clearTimeout(debounceTimeout);
+			debounceTimeout = setTimeout(() => {
+				const currentPageSize = $page.url.searchParams.get('currentPageSize');
+
+				const params = objectToURLSearchParams({
+					name: $SortFilterMatchFormStore.name || null,
+					score: $SortFilterMatchFormStore.score || null,
+					minDateString: $SortFilterMatchFormStore.minDateString || null,
+					maxDateString: $SortFilterMatchFormStore.maxDateString || null,
+					sortBy: $SortFilterMatchFormStore.sortBy,
+					descending: $SortFilterMatchFormStore.descending,
+					currentPageSize,
+				});
+
+				const url = new URL($page.url);
+				const new_url = new URL(`${url.origin}${url.pathname}?${params}`);
+				goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+			}, 400);
+		}
 	}
 </script>
 
@@ -74,7 +100,8 @@
 	<ResetButton onClick={resetForm} label="Reset" />
 </div>
 
-<form class="filters" on:submit={handleSubmit}>
+<!-- <form class="filters" on:submit={handleSubmit}> -->
+<form class="filters">
 	<div class="column-2-elems">
 		<!-- svelte-ignore a11y-label-has-associated-control -->
 		<label>
@@ -118,11 +145,11 @@
 			/>
 		</label>
 	</div>
-	<div class="line-2-elems">
+	<!-- <div class="line-2-elems">
 		<div class="last-box margin-top">
 			<Button dark={false} disabled={false} type={'submit'}>Search</Button>
 		</div>
-	</div>
+	</div> -->
 
 	<h2>Sort by</h2>
 
@@ -135,11 +162,11 @@
 		/>
 	</div>
 	<OrderButton bind:value={$SortFilterMatchFormStore.descending} />
-	<div class="line-2-elems">
+	<!-- <div class="line-2-elems">
 		<div class="last-box full-width margin-top">
 			<Button dark={false} disabled={false} type={'submit'}>Sort</Button>
 		</div>
-	</div>
+	</div> -->
 </form>
 
 <style>
@@ -178,7 +205,7 @@
 		gap: 0.44rem;
 		align-items: end;
 	}
-	.last-box {
+	/* .last-box {
 		grid-column: 2;
 	}
 	.full-width {
@@ -187,5 +214,5 @@
 
 	.margin-top {
 		margin-top: 1em;
-	}
+	} */
 </style>

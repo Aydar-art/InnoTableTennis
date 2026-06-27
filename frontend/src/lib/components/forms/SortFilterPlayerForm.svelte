@@ -3,7 +3,7 @@
 		SORT_FILTER_PLAYER_FORM,
 		SortFilterPlayerFormStore,
 	} from '$lib/client/stores/stores.forms';
-	import Button from '$lib/components/base/Button.svelte';
+	// import Button from '$lib/components/base/Button.svelte';
 	import RadioGroup from '$lib/components/base/RadioGroup.svelte';
 	import OrderButton from '$lib/components/base/OrderButton.svelte';
 
@@ -33,32 +33,61 @@
 				$SortFilterPlayerFormStore.descending = searchParams.get('descending') !== 'false';
 			}
 		}
+		isInitialized = true;
 	});
 
 	let radioValues = ['rating', 'name'];
 	let radioLabels = ['Sort by rating', 'Sort by name'];
 
+	let debounceTimeout: ReturnType<typeof setTimeout>;
+	let isInitialized = false;
+
 	const resetForm = function () {
 		$SortFilterPlayerFormStore = structuredClone(SORT_FILTER_PLAYER_FORM);
-		goto($page.url.pathname, {replaceState: true, noScroll: true, keepFocus: true});
+		// goto($page.url.pathname, {replaceState: true, noScroll: true, keepFocus: true});
 	};
 
-	function handleSubmit(event: SubmitEvent) {
-		const url = new URL($page.url);
+	// function handleSubmit(event: SubmitEvent) {
+	// 	const url = new URL($page.url);
 
-		const currentPageSize = url.searchParams.get('currentPageSize');
+	// 	const currentPageSize = url.searchParams.get('currentPageSize');
 
-		const formData = new FormData(event.target as HTMLFormElement);
+	// 	const formData = new FormData(event.target as HTMLFormElement);
 
-		const searchParams = objectToURLSearchParams({
-			...Object.fromEntries(formData),
-			currentPageSize,
-		});
+	// 	const searchParams = objectToURLSearchParams({
+	// 		...Object.fromEntries(formData),
+	// 		currentPageSize,
+	// 	});
 
-		const new_url = new URL(`${url.origin}${url.pathname}?${searchParams}`);
+	// 	const new_url = new URL(`${url.origin}${url.pathname}?${searchParams}`);
 
-		event.preventDefault();
-		goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+	// 	event.preventDefault();
+	// 	goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+	// }
+
+	$: {
+		if (isInitialized) {
+			const _ = $SortFilterPlayerFormStore; // создаём зависимость от стора
+
+			clearTimeout(debounceTimeout);
+			debounceTimeout = setTimeout(() => {
+				const currentPageSize = $page.url.searchParams.get('currentPageSize');
+
+				const params = objectToURLSearchParams({
+					name: $SortFilterPlayerFormStore.name || null,
+					telegramAlias: $SortFilterPlayerFormStore.telegramAlias || null,
+					minRating: $SortFilterPlayerFormStore.minRating || null,
+					maxRating: $SortFilterPlayerFormStore.maxRating || null,
+					sortBy: $SortFilterPlayerFormStore.sortBy,
+					descending: $SortFilterPlayerFormStore.descending,
+					currentPageSize,
+				});
+
+				const url = new URL($page.url);
+				const new_url = new URL(`${url.origin}${url.pathname}?${params}`);
+				goto(new_url.href, { replaceState: true, noScroll: true, keepFocus: true });
+			}, 400);
+		}
 	}
 </script>
 
@@ -67,7 +96,8 @@
 	<ResetButton onClick={resetForm} label="Reset" />
 </div>
 
-<form on:submit={handleSubmit} class="filters">
+<!-- <form on:submit={handleSubmit} class="filters"> -->
+ <form class="filters">
 	<div class="column-2-elems">
 		<!-- svelte-ignore a11y-label-has-associated-control -->
 		<label>
@@ -113,11 +143,11 @@
 			/>
 		</label>
 	</div>
-	<div class="line-2-elems">
+	<!-- <div class="line-2-elems">
 		<div class="last-box margin-top">
 			<Button dark={false} disabled={false} type={'submit'}>Search</Button>
 		</div>
-	</div>
+	</div> -->
 
 	<h2>Sort by</h2>
 
@@ -130,11 +160,11 @@
 		/>
 	</div>
 	<OrderButton bind:value={$SortFilterPlayerFormStore.descending} />
-	<div class="line-2-elems">
+	<!-- <div class="line-2-elems">
 		<div class="last-box margin-top">
 			<Button dark={false} disabled={false} type={'submit'}>Sort</Button>
 		</div>
-	</div>
+	</div> -->
 </form>
 
 <style>
@@ -166,11 +196,11 @@
 		gap: 1rem 0.44rem;
 		align-items: end;
 	}
-	.last-box {
+	/* .last-box {
 		grid-column: 2;
 	}
 
 	.margin-top {
 		margin-top: 1em;
-	}
+	} */
 </style>
