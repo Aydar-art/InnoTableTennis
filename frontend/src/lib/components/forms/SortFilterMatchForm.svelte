@@ -44,6 +44,8 @@
 
 	const resetForm = function () {
 		$SortFilterMatchFormStore = structuredClone(SORT_FILTER_MATCH_FORM);
+		goto($page.url.pathname, {keepFocus: true, noScroll: true, replaceState: true});
+
 	};
 
 	function handleSubmit(event: SubmitEvent) {
