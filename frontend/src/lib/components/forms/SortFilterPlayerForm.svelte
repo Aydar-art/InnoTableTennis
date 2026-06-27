@@ -40,6 +40,7 @@
 
 	const resetForm = function () {
 		$SortFilterPlayerFormStore = structuredClone(SORT_FILTER_PLAYER_FORM);
+		goto($page.url.pathname, {replaceState: true, noScroll: true, keepFocus: true});
 	};
 
 	function handleSubmit(event: SubmitEvent) {

@@ -13,6 +13,7 @@
 	import { objectToURLSearchParams } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { Router } from 'lucide-svelte';
 
 	onMount(() => {
 		if ($page.url.pathname == '/') {
@@ -46,6 +47,7 @@
 
 	const resetForm = function () {
 		$SortFilterTournamentFormStore = structuredClone(SORT_FILTER_TOURNAMENT_FORM);
+		goto($page.url.pathname, {keepFocus: true, noScroll: true, replaceState: true});
 	};
 
 	function handleSubmit(event: SubmitEvent) {

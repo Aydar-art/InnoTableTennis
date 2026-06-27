@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import subprocess, os, signal, sys, time, shutil
+import subprocess, os, signal, sys, time, shutil, argparse
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(ROOT, 'TableTennisBackend')
@@ -9,6 +9,13 @@ FRONTEND_LOG = '/tmp/frontend.log'
 procs = []
 IS_MAC = sys.platform == 'darwin'
 IS_LINUX = sys.platform == 'linux'
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--dev', action='store_true',
+                    help='skip backend compilation, skip npm install')
+parser.add_argument('--host-ip', default=None,
+                    help='server IP address for PUBLIC_DEV_SERVER_URL (e.g. 192.168.31.111)')
+args = parser.parse_args()
 
 def log(msg):
     print(f'[run.py] {msg}')
@@ -27,6 +34,34 @@ def run(cmd, cwd=None, timeout=None, **kw):
 def confirm(question):
     ans = input(f'  ⚠ {question} [Y/n] ').strip().lower()
     return ans != 'n'
+
+def tail_log(path, lines=10):
+    try:
+        r = run(['tail', f'-{lines}', path])
+        return r.stdout
+    except: return '(unable to read log)'
+
+def wait_service(name, url, max_wait=600):
+    log(f'Waiting for {name} at {url} (up to {max_wait}s)...')
+    for step in range(max_wait // 2):
+        try:
+            r = run(['curl', '-s', '--connect-timeout', '3',
+                     '-o', '/dev/null', '-w', '%{http_code}', url], timeout=5)
+            code = r.stdout.strip()
+            if code == '200':
+                log(f'{name} ready ({step * 2 + 1}s)')
+                return True
+            if code and (step * 2) % 10 == 0:
+                log(f'  {name}: got HTTP {code}, retrying... ({step * 2 + 1}s)')
+        except subprocess.TimeoutExpired:
+            if (step * 2) % 10 == 0:
+                log(f'  {name}: curl timed out, retrying... ({step * 2 + 1}s)')
+        except Exception as e:
+            if (step * 2) % 10 == 0:
+                log(f'  {name}: {e}, retrying... ({step * 2 + 1}s)')
+        time.sleep(2)
+    log(f'ERROR: {name} failed to start within {max_wait}s')
+    return False
 
 signal.signal(signal.SIGINT, cleanup)
 signal.signal(signal.SIGTERM, cleanup)
@@ -102,14 +137,11 @@ def install_node():
 
 log('Checking dependencies...')
 
-# Python version
 log(f'  ✓ Python {sys.version_info.major}.{sys.version_info.minor}')
 
-# curl
 if not shutil.which('curl'):
     install_package('curl', 'curl', 'curl', 'curl is required for health checks.')
 
-# Java
 java_home = None
 java_ok = False
 res = run(['java', '-version'], timeout=10)
@@ -129,7 +161,6 @@ else:
         install_package('Java 17', 'openjdk@17', 'openjdk-17-jdk',
                          'Java 17 is required for the backend.')
 
-# Find JAVA_HOME
 for candidate in [
     '/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home',
     '/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home',
@@ -145,12 +176,11 @@ if not java_home:
         res = run(['/usr/libexec/java_home', '-v', '17'], timeout=5)
         if res.returncode == 0:
             java_home = res.stdout.strip()
-    java_home = java_home or shutil.which('java') or ''
+    java_home = java_home or (shutil.which('java') or '')
 
 if java_home:
     log(f'  ✓ JAVA_HOME = {java_home}')
 
-# Node.js
 node_ok = bool(shutil.which('node'))
 npm_ok = bool(shutil.which('npm'))
 if not node_ok:
@@ -163,14 +193,14 @@ if node_ok:
 if npm_ok:
     log(f'  ✓ npm found')
 
-# npm dependencies
-if npm_ok:
+# ── npm install (unless --dev) ──────────────────────────────────
+
+if npm_ok and not args.dev:
     nm = os.path.join(FRONTEND_DIR, 'node_modules')
     if os.path.isdir(nm):
         log('  ✓ frontend dependencies installed')
     else:
         log('  installing frontend npm dependencies (this may take a while)...')
-        log('  running: npm install')
         r = subprocess.run(['npm', 'install'], cwd=FRONTEND_DIR,
                           capture_output=False, timeout=None)
         if r.returncode == 0:
@@ -178,7 +208,8 @@ if npm_ok:
         else:
             log(f'  ✗ npm install failed (exit code {r.returncode})')
 
-# Maven wrapper
+# ── Maven wrapper ───────────────────────────────────────────────
+
 mvnw = os.path.join(BACKEND_DIR, 'mvnw')
 if os.path.isfile(mvnw):
     log('  ✓ Maven wrapper found')
@@ -187,13 +218,14 @@ if os.path.isfile(mvnw):
 else:
     log('  ✗ mvnw not found at ' + mvnw)
 
-# Pre-compile backend
-if java_ok and java_home and os.path.isfile(mvnw):
+# ── Pre-compile backend (unless --dev) ──────────────────────────
+
+if java_ok and java_home and os.path.isfile(mvnw) and not args.dev:
     target = os.path.join(BACKEND_DIR, 'target', 'classes')
     if os.path.isdir(target) and os.listdir(target):
         log('  ✓ Backend already compiled')
     else:
-        log('  compiling backend (first run, this may take a few minutes)...')
+        log('  compiling backend (first run, this may take a while)...')
         env = os.environ.copy()
         full_java = os.path.join(java_home, 'bin', 'java') if os.path.isdir(java_home) else java_home
         if os.path.isfile(full_java):
@@ -203,7 +235,7 @@ if java_ok and java_home and os.path.isfile(mvnw):
         if r.returncode == 0:
             log('  ✓ Backend compiled')
         else:
-            log(f'  ⚠ compile issues (will retry at startup)')
+            log('  ⚠ backend compile had issues, will retry at startup')
 
 log('All checks passed, starting services...\n')
 
@@ -216,78 +248,79 @@ if java_home:
     if jhome:
         env['JAVA_HOME'] = jhome
 
-log('Starting backend (Spring Boot + H2)...')
+env['MAVEN_OPTS'] = '-Xmx256m'
+env['JAVA_TOOL_OPTIONS'] = '-Xmx256m'
+
+log('Starting backend (Spring Boot + H2) with MAVEN_OPTS=-Xmx256m...')
 with open(BACKEND_LOG, 'w') as f:
     procs.append(subprocess.Popen(
-        [mvnw, 'spring-boot:run', '-Dspring-boot.run.profiles=h2'],
+        [mvnw, 'spring-boot:run', '-Dspring-boot.run.profiles=h2',
+         '-Dspring-boot.run.arguments=--server.address=0.0.0.0'],
         cwd=BACKEND_DIR, env=env, stdout=f, stderr=subprocess.STDOUT
     ))
 
-log('Starting frontend (SvelteKit + Vite)...')
-with open(FRONTEND_LOG, 'w') as f:
-    procs.append(subprocess.Popen(
-        ['npm', 'run', 'dev'],
-        cwd=FRONTEND_DIR, stdout=f, stderr=subprocess.STDOUT
-    ))
+# ── Wait for backend, then start frontend ───────────────────────
 
-MAX_WAIT = 300  # 5 minutes per service
-SLEEP = 2
+MAX_WAIT = 600
+backend_ok = wait_service('Backend', 'http://127.0.0.1:8080/api/matches', MAX_WAIT)
 
-# Wait for backend
-log(f'Waiting for backend (up to {MAX_WAIT}s)...')
-backend_ok = False
-for i in range(MAX_WAIT // SLEEP):
-    try:
-        r = run(['curl', '-so', '/dev/null', '-w', '%{http_code}',
-                 'http://localhost:8080/api/matches'], timeout=5)
-        if r.stdout.strip() == '200':
-            log(f'Backend ready ({i * SLEEP + 1}s)')
-            backend_ok = True
-            break
-    except: pass
-    if (i * SLEEP) % 10 == 0:
-        log(f'  waiting for backend... ({i * SLEEP + 1}s)')
-    time.sleep(SLEEP)
+frontend_ok = False
+if backend_ok:
+    host_ip = args.host_ip or 'localhost'
+    log(f'Starting frontend (SvelteKit + Vite) — PUBLIC_DEV_SERVER_URL=http://{host_ip}:8080...')
+    frontend_env = env.copy()
+    frontend_env['PUBLIC_DEV_SERVER_URL'] = f'http://{host_ip}:8080'
+    with open(FRONTEND_LOG, 'w') as f:
+        procs.append(subprocess.Popen(
+            ['npm', 'run', 'dev', '--', '--host', '0.0.0.0'],
+            cwd=FRONTEND_DIR, env=frontend_env, stdout=f, stderr=subprocess.STDOUT
+        ))
+    frontend_ok = wait_service('Frontend', 'http://127.0.0.1:5173', MAX_WAIT)
+
+# ── Results ─────────────────────────────────────────────────────
 
 if not backend_ok:
-    log('ERROR: Backend failed to start. Check /tmp/backend.log')
-
-# Wait for frontend
-if backend_ok:
-    log(f'Waiting for frontend (up to {MAX_WAIT}s)...')
-frontend_ok = False
-for i in range(MAX_WAIT // SLEEP):
-    if not backend_ok:
-        break
-    try:
-        r = run(['curl', '-so', '/dev/null', '-w', '%{http_code}',
-                 'http://localhost:5173'], timeout=5)
-        if r.stdout.strip() == '200':
-            log(f'Frontend ready ({i * SLEEP + 1}s)')
-            frontend_ok = True
-            break
-    except: pass
-    if (i * SLEEP) % 10 == 0:
-        log(f'  waiting for frontend... ({i * SLEEP + 1}s)')
-    time.sleep(SLEEP)
+    log('')
+    log('╔══════════════════════════════════════════════════╗')
+    log('║  Backend failed to start                        ║')
+    log('╠══════════════════════════════════════════════════╣')
+    log(f'║  Log: {BACKEND_LOG}')
+    log('║                                                ║')
+    log('║  Last lines:                                    ║')
+    for line in tail_log(BACKEND_LOG, 15).strip().split('\n'):
+        log(f'║  │ {line}')
+    log('╚══════════════════════════════════════════════════╝')
+    log('')
 
 if not frontend_ok and backend_ok:
-    log('ERROR: Frontend failed to start. Check /tmp/frontend.log')
+    log('')
+    log('╔══════════════════════════════════════════════════╗')
+    log('║  Frontend failed to start                       ║')
+    log('╠══════════════════════════════════════════════════╣')
+    log(f'║  Log: {FRONTEND_LOG}')
+    log('║                                                ║')
+    log('║  Last lines:                                    ║')
+    for line in tail_log(FRONTEND_LOG, 15).strip().split('\n'):
+        log(f'║  │ {line}')
+    log('╚══════════════════════════════════════════════════╝')
+    log('')
 
 if backend_ok and frontend_ok:
+    url = host_ip if host_ip != 'localhost' else 'localhost'
     log('All services are up!')
+    print(f'  ┌──────────────────────────────────────────────────┐')
+    print(f'  │  Frontend : http://{url}:5173                    │')
+    print(f'  │  Backend  : http://{url}:8080                    │')
+    print(f'  │  Login    : admin / admin                        │')
+    print(f'  │                                                  │')
+    print(f'  │  Logs:                                           │')
+    print(f'  │    backend  → tail -f /tmp/backend.log           │')
+    print(f'  │    frontend → tail -f /tmp/frontend.log          │')
+    print(f'  │  Ctrl+C to stop                                  │')
+    print(f'  └──────────────────────────────────────────────────┘')
     print()
-    print('  ┌──────────────────────────────────────────────────┐')
-    print('  │  Frontend : http://localhost:5173                │')
-    print('  │  Backend  : http://localhost:8080                │')
-    print('  │  Login    : admin / admin                        │')
-    print('  │                                                  │')
-    print('  │  Logs:                                           │')
-    print('  │    backend  → tail -f /tmp/backend.log           │')
-    print('  │    frontend → tail -f /tmp/frontend.log          │')
-    print('  │  Ctrl+C to stop                                  │')
-    print('  └──────────────────────────────────────────────────┘')
-    print()
+
+# ── Wait for termination ───────────────────────────────────────
 
 for p in procs:
     p.wait()
